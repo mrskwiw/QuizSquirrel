@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import PublicQuizzes from './pages/PublicQuizzes';
 import EmailVerification from './pages/EmailVerification';
+import AuthCallback from './pages/AuthCallback';
 import { AuthProvider } from './context/AuthContext';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/quizzes" element={<PublicQuizzes />} />
               <Route path="/email-verification" element={<EmailVerification />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
             </Routes>
           </main>
         </div>
