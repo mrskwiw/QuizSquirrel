@@ -44,11 +44,7 @@ export default function Register() {
       await signUp(email, password);
       navigate('/email-verification');
     } catch (err) {
-      if (err instanceof Error) {
-        setErrors([err.message]);
-      } else {
-        setErrors(['Failed to create an account. Please try again.']);
-      }
+      setErrors(['Failed to create an account. Please try again.']);
     } finally {
       setLoading(false);
     }
