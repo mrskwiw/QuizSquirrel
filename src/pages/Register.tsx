@@ -1,67 +1,107 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, AlertCircle } from 'lucide-react';
+import { UserPlus, AlertCircle, Info } from 'lucide-react';
 import { validatePassword, validateEmail } from '../utils/validation';
+
+interface SignupError {
+  step: string;
+  message: string;
+  details?: any;
+}
 
 export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<SignupError[]>([]);
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const navigate = useNavigate();
   const { signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newErrors: string[] = [];
-
-    // Validate email
-    if (!validateEmail(email)) {
-      newErrors.push('Please enter a valid email address');
-    }
-
-    // Validate password
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      newErrors.push(...passwordValidation.errors);
-    }
-
-    // Check password confirmation
-    if (password !== confirmPassword) {
-      newErrors.push('Passwords do not match');
-    }
-
-    if (newErrors.length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+    const newErrors: SignupError[] = [];
+    setDebugInfo(null);
 
     try {
-      setErrors([]);
-      setLoading(true);
-      const { error, confirmationSent } = await signUp(email, password);
+      // Step 1: Input Validation
+      setDebugInfo('Step 1: Validating input fields...');
       
-      if (error) {
-        setErrors([error.message]);
+      if (!validateEmail(email)) {
+        newErrors.push({
+          step: 'input_validation',
+          message: 'Please enter a valid email address'
+        });
+      }
+
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        newErrors.push({
+          step: 'input_validation',
+          message: 'Password validation failed',
+          details: passwordValidation.errors
+        });
+      }
+
+      if (password !== confirmPassword) {
+        newErrors.push({
+          step: 'input_validation',
+          message: 'Passwords do not match'
+        });
+      }
+
+      if (newErrors.length > 0) {
+        setErrors(newErrors);
         return;
       }
 
+      // Step 2: Signup Process
+      setLoading(true);
+      setDebugInfo('Step 2: Initiating signup with Supabase...');
+      
+      const { error, confirmationSent, debugDetails } = await signUp(email, password);
+      
+      if (error) {
+        newErrors.push({
+          step: 'supabase_signup',
+          message: error.message,
+          details: debugDetails
+        });
+        setErrors(newErrors);
+        setDebugInfo(`Signup failed: ${error.message}\nDetails: ${JSON.stringify(debugDetails, null, 2)}`);
+        return;
+      }
+
+      // Step 3: Handle Response
+      setDebugInfo('Step 3: Processing signup response...');
+      
       if (confirmationSent) {
+        setDebugInfo('Email confirmation sent successfully. Redirecting to verification page...');
         navigate('/email-verification');
       } else {
-        // If confirmation not required, redirect to dashboard
+        setDebugInfo('No email confirmation required. Redirecting to dashboard...');
         navigate('/');
       }
+
     } catch (err) {
-      setErrors(['Failed to create an account. Please try again.']);
+      const error = err as Error;
+      newErrors.push({
+        step: 'unexpected_error',
+        message: 'An unexpected error occurred during signup',
+        details: {
+          errorMessage: error.message,
+          errorStack: error.stack
+        }
+      });
+      setErrors(newErrors);
+      setDebugInfo(`Unexpected error: ${error.message}\nStack: ${error.stack}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Rest of the component remains the same...
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-white p-8 rounded-lg shadow-md">
@@ -74,13 +114,37 @@ export default function Register() {
           <div className="bg-red-50 text-red-700 p-4 rounded-md mb-6">
             <div className="flex items-center mb-2">
               <AlertCircle className="w-5 h-5 mr-2" />
-              <span className="font-medium">Please fix the following errors:</span>
+              <span className="font-medium">Registration failed:</span>
             </div>
-            <ul className="list-disc list-inside space-y-1">
-              {errors.map((error, index) => (
-                <li key={index} className="text-sm">{error}</li>
-              ))}
-            </ul>
+            {errors.map((error, index) => (
+              <div key={index} className="mb-2">
+                <div className="font-semibold">Step: {error.step}</div>
+                <div className="ml-4">{error.message}</div>
+                {error.details && Array.isArray(error.details) ? (
+                  <ul className="list-disc ml-8">
+                    {error.details.map((detail, i) => (
+                      <li key={i} className="text-sm">{detail}</li>
+                    ))}
+                  </ul>
+                ) : error.details && typeof error.details === 'object' ? (
+                  <pre className="text-xs bg-red-100 p-2 mt-1 rounded">
+                    {JSON.stringify(error.details, null, 2)}
+                  </pre>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {debugInfo && (
+          <div className="bg-blue-50 text-blue-700 p-4 rounded-md mb-6">
+            <div className="flex items-center mb-2">
+              <Info className="w-5 h-5 mr-2" />
+              <span className="font-medium">Debug Information:</span>
+            </div>
+            <pre className="text-xs overflow-auto max-h-40">
+              {debugInfo}
+            </pre>
           </div>
         )}
 

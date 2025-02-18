@@ -6,7 +6,11 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null; confirmationSent: boolean }>;
+  signUp: (email: string, password: string) => Promise<{
+    error: AuthError | null;
+    confirmationSent: boolean;
+    debugDetails?: any;
+  }>;
   signOut: () => Promise<void>;
 }
 
@@ -17,16 +21,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -38,18 +39,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error, data } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`
-      }
-    });
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      console.log('Signup attempt with redirect URL:', redirectTo);
 
-    return {
-      error,
-      confirmationSent: !error && data.user?.identities?.length === 0
-    };
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectTo,
+        }
+      });
+
+      const debugDetails = {
+        redirectUrl: redirectTo,
+        userCreated: !!data.user,
+        identitiesCount: data.user?.identities?.length,
+        session: !!data.session,
+        timestamp: new Date().toISOString(),
+        origin: window.location.origin,
+      };
+
+      console.log('Signup response:', { data, error, debugDetails });
+
+      return {
+        error,
+        confirmationSent: !error && data.user?.identities?.length === 0,
+        debugDetails
+      };
+    } catch (err) {
+      console.error('Unexpected error during signup:', err);
+      return {
+        error: {
+          message: 'Unexpected error during signup',
+          status: 500,
+          name: 'UnexpectedError'
+        } as AuthError,
+        confirmationSent: false,
+        debugDetails: {
+          error: err,
+          timestamp: new Date().toISOString()
+        }
+      };
+    }
   };
 
   const signOut = async () => {
