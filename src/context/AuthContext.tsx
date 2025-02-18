@@ -26,7 +26,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event, session);
       setUser(session?.user ?? null);
     });
 
@@ -40,15 +41,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      console.log('Signup attempt with redirect URL:', redirectTo);
+      const siteUrl = import.meta.env.VITE_SITE_URL || 'https://quiz-squirrel.vercel.app';
+      const redirectTo = `${siteUrl}/auth/callback`;
+
+      console.log('Starting signup process...', {
+        siteUrl,
+        redirectTo,
+        timestamp: new Date().toISOString()
+      });
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: redirectTo,
+          data: {
+            timestamp: new Date().toISOString(),
+            signupOrigin: siteUrl
+          }
         }
+      });
+
+      console.log('Signup response:', {
+        success: !error,
+        userId: data?.user?.id,
+        userEmail: data?.user?.email,
+        identitiesCount: data?.user?.identities?.length,
+        hasSession: !!data?.session,
+        error: error ? {
+          message: error.message,
+          status: error.status
+        } : null,
+        timestamp: new Date().toISOString()
       });
 
       const debugDetails = {
@@ -56,15 +80,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userCreated: !!data.user,
         identitiesCount: data.user?.identities?.length,
         session: !!data.session,
+        confirmationEmailSent: !error && !data.session && !!data.user,
         timestamp: new Date().toISOString(),
-        origin: window.location.origin,
+        origin: siteUrl
       };
-
-      console.log('Signup response:', { data, error, debugDetails });
 
       return {
         error,
-        confirmationSent: !error && data.user?.identities?.length === 0,
+        confirmationSent: !error && data.user && !data.session,
         debugDetails
       };
     } catch (err) {
