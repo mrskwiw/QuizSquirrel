@@ -41,8 +41,19 @@ export default function Register() {
     try {
       setErrors([]);
       setLoading(true);
-      await signUp(email, password);
-      navigate('/email-verification');
+      const { error, confirmationSent } = await signUp(email, password);
+      
+      if (error) {
+        setErrors([error.message]);
+        return;
+      }
+
+      if (confirmationSent) {
+        navigate('/email-verification');
+      } else {
+        // If confirmation not required, redirect to dashboard
+        navigate('/');
+      }
     } catch (err) {
       setErrors(['Failed to create an account. Please try again.']);
     } finally {
@@ -50,6 +61,7 @@ export default function Register() {
     }
   };
 
+  // Rest of the component remains the same...
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-white p-8 rounded-lg shadow-md">
